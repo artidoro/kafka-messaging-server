@@ -1,12 +1,14 @@
 # frontend.py
 
 import socket
+import struct
 import sys
 import threading
 import os
 import kafka
 
 import frontend_receive
+import frontend_send
 import frontend_data
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../networking_utils/'))
@@ -18,17 +20,49 @@ version = b'\x01'
 
 # opcode associations; note that these opcodes will be sent by the client
 opcodes = {
-    b'\x10': server_receive.transfer,  # create_request
-    b'\x20': server_receive.login,  # login_request
-    b'\x30': server_receive.logout_request,
-    b'\x40': server_receive.transfer,  # delete_request
-    b'\x50': server_receive.transfer,  # list_request
+    b'\x10': frontend_receive.transfer,  # create_request
+    b'\x20': frontend_receive.login,  # login_request
+    b'\x30': frontend_receive.logout_request,
+    b'\x40': frontend_receive.transfer,  # delete_request
+    b'\x50': frontend_receive.transfer,  # list_request
     # b'\x60': server_receive.retrieve_request
-    b'\x70': server_receive.transfer  # send_request
+    b'\x70': frontend_receive.transfer  # send_request
 }
 
 
-def message_handler(sock, lock, producer, frontend_id):
+def kafka_message_handler(sock, lock, user_name):
+    """
+
+    :param sock: socket object
+    :param lock: threading.lock
+    :param user_name
+    :return:
+    """
+
+    consumer = kafka.KafkaConsumer(user_name,
+                                   bootstrap_servers=[frontend_data.broker_host + ":" + frontend_data.broker_port])
+    # keep reading off messages from the consumer as they arrive
+    for message in consumer:
+        # we transfer messages directly to the client, they already have the appropriate header
+        try:
+            frontend_send.message_transfer(sock, message.value)
+        except:
+            print("A user has been disconnected.")
+            frontend_receive.logout_user(lock)
+            # TODO make sure the other thread also dies
+            sock.close()
+            return
+        header = struct.unpack('!cIc', message.value[:handle_messages.HEADER_LEN])
+        # if the message was a delete request, log the user out after sending the relative request to the user
+        if header[2] == b'\x40':
+            frontend_receive.logout_user(lock)
+            sock.close()
+            return
+
+    return
+
+
+def client_message_handler(sock, lock, producer, frontend_id):
     """
     Function that listens on socket connection and handles messages.
 
@@ -69,7 +103,8 @@ def message_handler(sock, lock, producer, frontend_id):
             opcodes[opcode](sock, header, payload_size, payload, producer, frontend_id, lock)
         except KeyError:
             print("Error while handling request. The user has been disconnected.")
-            server_receive.logout_user(lock)
+            frontend_receive.logout_user(lock)
+            # TODO make sure the other thread also dies
             sock.close()
             return
 
@@ -106,5 +141,5 @@ if __name__ == '__main__':
 
         print("Connected to a new client.")
         # start thread handeling requests from the client, and producing to kafka
-        threading.Thread(target=message_handler, args=(client_sock, data_lock, producer, frontend_id), daemon=True).start()
+        threading.Thread(target=client_message_handler, args=(client_sock, data_lock, producer, frontend_id), daemon=True).start()
 

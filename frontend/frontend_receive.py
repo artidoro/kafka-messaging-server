@@ -2,11 +2,16 @@ import kafka
 import os
 import struct
 import sys
+import threading
+import uuid
 
+
+import frontend
 import frontend_send
 import frontend_data
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../networking_utils/'))
+import handle_messages
 
 # TODO
 # upon receiving a message, if log in request set up a consumer thread
@@ -19,9 +24,10 @@ def consume_login(user_name):
     consumer = kafka.KafkaConsumer(user_name,
                                    bootstrap_servers=[frontend_data.broker_host + ":" + frontend_data.broker_port])
     for message in consumer:
-        message.value
-        # get the message.value and check if it is the login success
-        #TODO
+        # get the message.value and check if it is the login success (should be just the header here)
+        header = struct.unpack('!cIc', message.value[:handle_messages.HEADER_LEN])
+        return header[2] == b'\x21'
+
     return
 
 
@@ -54,36 +60,39 @@ def login_request(conn, header, payload_length, raw_payload, producer, frontend_
     # get username
     user_name = struct.unpack('!{}s'.format(payload_length), raw_payload)[0]
     with lock:
-        # # check that username is valid
-        # if user_name not in server_data.user_db.keys():
-        #     failure_msg = b'USERNAME DOES NOT EXIST! '
-        #     server_send.general_failure(conn, failure_msg)
-
         # only allow one connection at a time for each user
-        if frontend_data.user_db[user_name]['token'] is not None:
+        if user_name in frontend_data.user_db and frontend_data.user_db[user_name]['token'] is not None:
             failure_msg = b'USER ALREADY CONNECTED! '
-            frontend_data.general_failure(conn, failure_msg)
+            frontend_send.general_failure(conn, failure_msg)
+            return
 
-        # transfer request through Kafka to the backend
-        else:
-            transfer(conn, header, payload_length, raw_payload, producer, frontend_id, lock)
+    # transfer request through Kafka to the backend
+    transfer(conn, header, payload_length, raw_payload, producer, frontend_id, lock)
 
-        # if successful verification of the username by backend through kafka
-        if consume_login(user_name):
-            # TODO generate a thread doing consuming
+    # if successful verification of the username by backend through kafka
+    if consume_login(user_name):
+        # start a thread doing consuming
+        threading.Thread(target=frontend.kafka_message_handler, args=(conn, lock, user_name), daemon=True).start()
 
+        with lock:
             # create user session token using uuid (which may be overkill)
             token = uuid.uuid4().bytes
             # store user info in global database
-            frontend_data.user_db[user_name]['socket'] = conn
-            frontend_data.user_db[user_name]['token'] = token
-
+            frontend_data.user_db[user_name] = {
+                'socket': conn,
+                'message_queue': [],  # initialize empty message queue for user
+                'token': token,
+            }
             # store thread local user name
             frontend_data.thread_local.user_name = user_name
-            # send token back to user
-            frontend_send.login_success(conn, token)
-        else:
-            # send general failure otherwise
+
+        # send token back to user
+        frontend_send.general_message(conn, token)
+
+    else:
+        # send general failure otherwise
+        failure_msg = b'USERNAME ALREADY EXISTS! '
+        frontend_send.general_failure(conn, failure_msg)
         return
 
 
