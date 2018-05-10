@@ -15,16 +15,16 @@ sh stop_everything.sh
 ```
 
 ```
-sh spawn_consumer.sh TOPIC=topic_name
+sh spawn_consumer.sh topic_name
 ```
 
 ```
-sh spawn_producer.sh TOPIC=topic_name
+sh spawn_producer.sh topic_name
 ```
 
-OBS1: run the command in different terminal windows/tabs
+OBS1: run the commands in different terminal windows/tabs
 
-OBS2: no need to create topics in advance.
+OBS2: no need to create topics in advance
 
 
 
