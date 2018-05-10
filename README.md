@@ -22,7 +22,8 @@ sh spawn_consumer.sh TOPIC=topic_name
 sh spawn_producer.sh TOPIC=topic_name
 ```
 
-OBS: no need to create topics in advance.
+OBS1: run the command in different terminal windows/tabs
+OBS2: no need to create topics in advance.
 
 
 
