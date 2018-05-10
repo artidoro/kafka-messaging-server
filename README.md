@@ -6,25 +6,41 @@ Install [Docker](https://docs.docker.com/install/)
 
 ## Running
 
+(I) Start Kafka:
+
 ```
 sh start_kafka.sh
 ```
 
-```
-sh stop_everything.sh
-```
+(II) Spawn a Consumer for Testing Purposes
 
 ```
 sh spawn_consumer.sh topic_name
 ```
 
+(III) Spawn a Producer for Testing Purposes
+
 ```
 sh spawn_producer.sh topic_name
+```
+
+(IV) Produce a Message for Testing Purposes
+
+```
+sh test_producer.sh
+```
+
+(V) Stop Everything Running in our Application
+
+```
+sh stop_everything.sh
 ```
 
 OBS1: run the commands in different terminal windows/tabs
 
 OBS2: no need to create topics in advance
+
+OBS3: To check everything is running fine in your system, you can execute (I), (II), and (IV), in this order, in different terminal tabs/windows.
 
 
 
