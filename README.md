@@ -1,6 +1,30 @@
-# CS262-Wire-Protocol
+# CS262 Final Project
 
-Welcome to a very basic chat application!
+## System requirements
+
+Install [Docker](https://docs.docker.com/install/)
+
+## Running
+
+```
+sh start_kafka.sh
+```
+
+```
+sh stop_everything.sh
+```
+
+```
+sh spawn_consumer.sh TOPIC=topic_name
+```
+
+```
+sh spawn_producer.sh TOPIC=topic_name
+```
+
+OBS: no need to create topics in advance.
+
+
 
 ## Assignment specs
 
