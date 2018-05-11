@@ -36,6 +36,18 @@ sh test_producer.sh
 sh stop_everything.sh
 ```
 
+(VI) Start Frontend Server
+
+```
+sh start_frontend.sh
+```
+
+(VII) Start Client
+
+```
+sh start_client.sh
+```
+
 OBS1: run the commands in different terminal windows/tabs
 
 OBS2: no need to create topics in advance
