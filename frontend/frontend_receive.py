@@ -6,7 +6,6 @@ import threading
 import uuid
 
 
-import frontend
 import frontend_send
 import frontend_data
 
@@ -20,6 +19,85 @@ import handle_messages
 # For all other messages produce the request to kafka
 
 
+def client_message_handler(sock, lock, producer, frontend_id):
+    """
+    Function that listens on socket connection and handles messages.
+
+    Upon reception of a message the message header is parsed and unpacked and the message is redirected to the
+    appropriate function handler. The function checks that the message is using the correct version of the protocol.
+    We only support version 1. If the connection is down the function will close the current socket and log the user
+    out.
+
+    :param sock: socket object
+    :param lock: threading.lock
+    :return:
+    """
+    while True:
+        # Retrieve header data
+        try:
+            header, payload = handle_messages.recv_message(sock)
+        except:
+            print("A user has been disconnected.")
+            logout_user(lock)
+            # TODO make sure the other thread also dies
+            sock.close()
+            return
+
+        payload_version = header[0]
+        payload_size = header[1]
+        opcode = header[2]
+
+        # Version does not match: for now, log user out!
+        if payload_version != version:
+            print("Version number did not match. The user has been disconnected.")
+            logout_user(lock)
+            # TODO make sure the other thread also dies
+            sock.close()
+            return
+
+        # Try to send packet to correct handler
+        try:
+            opcodes[opcode](sock, header, payload_size, payload, producer, frontend_id, lock)
+        except KeyError:
+            print("Error while handling request. The user has been disconnected.")
+            logout_user(lock)
+            # TODO make sure the other thread also dies
+            sock.close()
+            return
+
+
+def kafka_message_handler(sock, lock, user_name):
+    """
+
+    :param sock: socket object
+    :param lock: threading.lock
+    :param user_name
+    :return:
+    """
+
+    consumer = kafka.KafkaConsumer(user_name,
+                                   bootstrap_servers=[frontend_data.broker_host + ":" + frontend_data.broker_port])
+    # keep reading off messages from the consumer as they arrive
+    for message in consumer:
+        # we transfer messages directly to the client, they already have the appropriate header
+        try:
+            frontend_send.message_transfer(sock, message.value)
+        except:
+            print("A user has been disconnected.")
+            logout_user(lock)
+            # TODO make sure the other thread also dies
+            sock.close()
+            return
+        header = struct.unpack('!cIc', message.value[:handle_messages.HEADER_LEN])
+        # if the message was a delete request, log the user out after sending the relative request to the user
+        if header[2] == b'\x40':
+            logout_user(lock)
+            sock.close()
+            return
+
+    return
+
+
 def consume_login(user_name):
     consumer = kafka.KafkaConsumer(user_name,
                                    bootstrap_servers=[frontend_data.broker_host + ":" + frontend_data.broker_port])
@@ -31,7 +109,7 @@ def consume_login(user_name):
     return
 
 
-def transfer(conn, header, payload_length, raw_payload, producer, frontend_id, lock):
+def transfer_to_kafka(conn, header, payload_length, raw_payload, producer, frontend_id, lock):
     print("Producing request for Kafka broker")
     message = header + raw_payload
     # this is asynchronous
@@ -67,12 +145,12 @@ def login_request(conn, header, payload_length, raw_payload, producer, frontend_
             return
 
     # transfer request through Kafka to the backend
-    transfer(conn, header, payload_length, raw_payload, producer, frontend_id, lock)
+    transfer_to_kafka(conn, header, payload_length, raw_payload, producer, frontend_id, lock)
 
     # if successful verification of the username by backend through kafka
     if consume_login(user_name):
         # start a thread doing consuming
-        threading.Thread(target=frontend.kafka_message_handler, args=(conn, lock, user_name), daemon=True).start()
+        threading.Thread(target=kafka_message_handler, args=(conn, lock, user_name), daemon=True).start()
 
         with lock:
             # create user session token using uuid (which may be overkill)
