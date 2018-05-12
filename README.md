@@ -199,6 +199,11 @@ where
 - *message_body* is a ```string``` containing the message that the sender wants to deliver to the recipient
 
 
+### Kafka Messages Format
+
+It is important to pinpoint that upon receiving a message from the client, the front end server adds to the end of it a generated token that corresponds to the user's topic in Kafka. In other words, if the front end receives `message`, it produces `message + topic_token` to Kafka. This is important because upon receiving and processing a message, the back end server will produce the response to the topic `token_topic`, which the front end will be listening to so it can forward the response to the correspondent client.
+
+
 ## Possible interactions: client ---> server
 
 ```
@@ -401,16 +406,8 @@ send
 
 
 
-
-
-
-
 ## What we did not worry about (at this point!)
 
 ### Safety
 
 Currently our whole system is completely open to the world in basically all senses. We use no encryption for the messages being exchanged between client and server, as well as no signatures. Authentication is ignored at this point. All these weaknesses can be easily exploited by men-in-the-middle attacks as well as any other kind of attacks. Another possible vulnerability to be exploited is to try to overflow the queued messages for a specific client.
-
-### Persistency
-
-The information on the server is not persistent at this time. This means that as soon as the server dies, all the information about users, queued messages, tokens, and everything else is lost.
