@@ -27,7 +27,7 @@ def create_request(producer, topic, payload_length, raw_payload):
     # get username
     user_name, = struct.unpack('!{}s'.format(payload_length), raw_payload)
     # check that username is valid
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     if user_name in dic.keys():
         failure_msg = b'USERNAME ALREADY EXISTS. TRY ANOTHER! '
@@ -42,7 +42,7 @@ def create_request(producer, topic, payload_length, raw_payload):
         # send token back to user
         token = topic.encode('utf-8')
         backend_send.create_success(producer, topic, token)
-        save_obj(dic, 'backend/data.db')
+        save_obj(dic, './db/data.db')
     return
 
 
@@ -62,7 +62,7 @@ def delete_request(producer, topic, payload_length, raw_payload):
     """
     print("Delete request.")
     # get username for this topic
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     for u in dic:
         if dic[u]['topic'] == topic:
@@ -72,7 +72,7 @@ def delete_request(producer, topic, payload_length, raw_payload):
     del dic[user_name]
     logout_user(topic)
 
-    save_obj(dic, 'backend/data.db')
+    save_obj(dic, './db/data.db')
 
     return
 
@@ -115,7 +115,7 @@ def send_request(producer, topic, payload_length, raw_payload):
     :return:
     """
     print("Send message request.")
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     # parse payload
     # first, get recipient name length; error if length too long
@@ -171,7 +171,7 @@ def send_request(producer, topic, payload_length, raw_payload):
         dic[recipient]['message_queue'].append(
             (user_name, message_body)
         )
-    save_obj(dic, 'backend/data.db')
+    save_obj(dic, './db/data.db')
     return
 
 
@@ -191,7 +191,7 @@ def login_request(producer, topic, payload_length, raw_payload):
     :param lock: threading.lock
     :return:
     """
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     # get username
     user_name, = struct.unpack('!{}s'.format(payload_length), raw_payload)
@@ -213,7 +213,7 @@ def login_request(producer, topic, payload_length, raw_payload):
         # send token back to user
         token = topic.encode('utf-8')
         backend_send.login_success(producer, topic, token)
-    save_obj(dic, 'backend/data.db')
+    save_obj(dic, './db/data.db')
     return
 
 
@@ -232,7 +232,7 @@ def retrieve_request(producer, topic, payload_length, raw_payload):
     :return:
     """
     print("Retrieve request.")
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     # get username for this topice
     for u in dic:
@@ -248,7 +248,7 @@ def retrieve_request(producer, topic, payload_length, raw_payload):
     # flush out message queue
     dic[user_name]['message_queue'] = []
 
-    save_obj(dic, 'backend/data.db')
+    save_obj(dic, './db/data.db')
     return
 
 
@@ -266,7 +266,7 @@ def list_request(producer, topic, payload_length, raw_payload):
     :return:
     """
     print("List users request.")
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     # get user names
     user_names = list(dic.keys())
@@ -283,7 +283,7 @@ def logout_user(topic):
     :param lock: threading.lock
     :return:
     """
-    dic = load_obj('backend/data.db')
+    dic = load_obj('./db/data.db')
 
     # get username on this topicection from thread_local
     for u in dic:
@@ -295,7 +295,7 @@ def logout_user(topic):
         dic[user_name]['topic'] = None
 
     print(dic)
-    save_obj(dic, 'backend/data.db')
+    save_obj(dic, './db/data.db')
     return
 
 

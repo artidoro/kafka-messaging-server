@@ -92,8 +92,8 @@ class BackendServer():
 
 if __name__ == '__main__':
     # set up database if empty
-    if not os.path.isfile('backend/data.db') or os.stat('backend/data.db').st_size == 0:
-        backend_receive.save_obj(dict(), 'backend/data.db')
+    if not os.path.isfile('./db/data.db') or os.stat('./db/data.db').st_size == 0:
+        backend_receive.save_obj(dict(), './db/data.db')
 
     backend = BackendServer()
     backend.message_handler()
