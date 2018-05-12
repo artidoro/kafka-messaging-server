@@ -53,7 +53,7 @@ class FrontendServer():
                 result = future.get(timeout=30)
 
             except socket.error as e:
-                print("Nothing has been received from this user!")
+                pass
             except Exception as e:
                 # remove this user from self.consumers
                 print(e)
