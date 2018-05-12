@@ -86,7 +86,6 @@ class BackendServer():
 
             # Try to send packet to correct handler
             try:
-                print("CALLING OPCODE: username -> {} | opcode -> {} |payload_size -> {} | payload -> {}".format(username, opcode, payload_size, payload))
                 opcodes[opcode](self.producer, username, payload_size, payload, lock)
             except Exception as e:
                 print(e)

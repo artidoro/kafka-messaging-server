@@ -141,10 +141,11 @@ def send_request(producer, topic, payload_length, raw_payload, lock):
 
         # check if recipient is online, send if yes
         recipient_topic = backend_data.user_db[recipient]['topic']
+        print("RECIPIENT TOPIC:::: {}".format(recipient_topic))
 
         if recipient_topic is not None:
             try:
-                backend_send.message_alert(producer, recipient_topic, server_data.thread_local.user_name, message_body)
+                backend_send.message_alert(producer, recipient_topic, topic, message_body)
                 # notify sender of delivery success
                 backend_send.send_success(producer, topic)
 

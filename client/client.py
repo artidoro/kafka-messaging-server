@@ -151,7 +151,6 @@ def message_handler(conn, lock, return_on_message=False):
         # receive message
         try:
             header, payload = handle_messages.recv_message(conn)
-            print('MESSAGE HERE: {} {}'.format(header, payload))
         except:
             with lock:
                 client_data.token = None
