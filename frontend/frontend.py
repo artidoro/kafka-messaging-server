@@ -32,7 +32,6 @@ class FrontendServer():
                 header, payload = handle_messages.recv_message(sock)
 
                 if header[2] == b'\x10' or header[2] == b'\x20':
-                    print("starting to unpack")
                     username, = struct.unpack('!{}s'.format(header[1]), payload)
                     username = username.decode()
                     if username not in self.sockets.keys():
@@ -43,9 +42,7 @@ class FrontendServer():
                     for u in self.sockets.keys():
                         if self.sockets[u] == sock:
                             username = u
-                print(username)
-                    #username = [u if self.sockets[u] == sock for u in self.sockets.keys()][0]
-                print("packing")
+                
                 core = header[0] + struct.pack('!I', header[1]) + header[2] + payload
                 username_conv = str.encode(username, 'utf-8')
                 msg = core + struct.pack('!{}s'.format(len(username_conv)), username_conv)
@@ -64,6 +61,7 @@ class FrontendServer():
                 print(e)
                 print("A user has been disconnected.")
                 sock.close()
+                del self.sockets[username]
                 return
 
             try:

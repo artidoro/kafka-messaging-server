@@ -31,7 +31,7 @@ def create_request(producer, topic, payload_length, raw_payload, lock):
     print("Create username request.")
 
     # get username
-    user_name, = struct.unpack('!{}s'.format(payload_length), raw_payload)
+    user_name= topic 
     with lock:
         # check that username is valid
         if user_name in backend_data.user_db.keys():
@@ -130,6 +130,8 @@ def send_request(producer, topic, payload_length, raw_payload, lock):
     # parse recipient name and message body (both in byte format)
     message_len = payload_length - 4 - recipient_length
     recipient, message_body = struct.unpack('!{}s{}s'.format(recipient_length, message_len), raw_payload[4:])
+    recipient = recipient.decode('utf-8')
+    print('TARGET RECIPIENT IS {}'.format(recipient))
 
     with lock:
         # check if recipient exists
@@ -274,8 +276,11 @@ def logout_user(lock, topic):
         # get username on this topicection from thread_local
         user_name = topic
         print("user_name = {}".format(user_name))
+        print(backend_data.user_db)
         if user_name is not None:
             # update the user info in the userdb
             backend_data.user_db[user_name]['token'] = None
             backend_data.user_db[user_name]['topic'] = None
+
+        print(backend_data.user_db)
     return
