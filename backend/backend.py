@@ -1,12 +1,9 @@
-import socket
 import struct
 import sys
-import threading
 import os
+import os.path
 from kafka import KafkaProducer, KafkaConsumer
-import backend_data
 import backend_receive
-import backend_send
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../networking_utils/'))
 import handle_messages
@@ -28,6 +25,7 @@ opcodes = {
 
 frontend_topics = {1: 'frontend1'}
 
+
 class BackendServer():
 
     def __init__(self):
@@ -36,8 +34,7 @@ class BackendServer():
         for f_id, topic in frontend_topics.items():
             self.consumers[f_id] = KafkaConsumer(topic, bootstrap_servers='kafka:9092', api_version=(0,10,1))
 
-
-    def message_handler(self, lock):
+    def message_handler(self):
         """
         Function that listens on socket connection and handles messages.
 
@@ -53,12 +50,11 @@ class BackendServer():
             # Retrieve header data
             for f_id, consumer in self.consumers.items():
                 try:
-                    self.consume_msgs(consumer, lock)
+                    self.consume_msgs(consumer)
                 except:
                     continue
 
-
-    def consume_msgs(self, consumer, lock):
+    def consume_msgs(self, consumer):
         
         for msg in consumer:
             
@@ -72,36 +68,32 @@ class BackendServer():
             payload_size = header[1]
             opcode = header[2]
             payload = message[HEADER_LEN:(HEADER_LEN + payload_size)]
-            username_len = len(message) - HEADER_LEN - payload_size
-            username, = struct.unpack('!{}s'.format(username_len), message[(HEADER_LEN + payload_size):])
-            username = username.decode()
+            token_len = len(message) - HEADER_LEN - payload_size
+            token, = struct.unpack('!{}s'.format(token_len), message[(HEADER_LEN + payload_size):])
+            token = token.decode()
 
-            print("For this request... username is ->>> {}".format(username))
+            print("For this request... username is ->>> {}".format(token))
 
             # Version does not match: for now, log user out!
             if payload_version != version:
                 print("Version number did not match. The user will be disconnected.")
-                backend_receive.logout_user(lock, username)
+                backend_receive.logout_user(token)
                 return
 
             # Try to send packet to correct handler
             try:
-                opcodes[opcode](self.producer, username, payload_size, payload, lock)
+                opcodes[opcode](self.producer, token, payload_size, payload)
             except Exception as e:
                 print(e)
                 print("Error while handling request. The user has been disconnected.")
-                backend_receive.logout_user(lock, username)
+                backend_receive.logout_user(token)
                 return
 
 
 if __name__ == '__main__':
+    # set up database if empty
+    if not os.path.isfile('backend/data.db') or os.stat('backend/data.db').st_size == 0:
+        backend_receive.save_obj(dict(), 'backend/data.db')
 
     backend = BackendServer()
-
-    # lock that threads will acquire to access user data base in backend_data
-    data_lock = threading.Lock()
-
-    handler_thread = threading.Thread(target=backend.message_handler, args=(data_lock,), daemon=True)
-
-    handler_thread.start()
-    handler_thread.join()
+    backend.message_handler()

@@ -1,18 +1,12 @@
 # backend_receive.py
 
-import os
+import pickle
 import struct
-import sys
-import uuid
 
-import backend_data
 import backend_send
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../networking_utils/'))
-import handle_messages
 
-
-def create_request(producer, topic, payload_length, raw_payload, lock):
+def create_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles the request to create a new account.
 
@@ -31,30 +25,28 @@ def create_request(producer, topic, payload_length, raw_payload, lock):
     print("Create username request.")
 
     # get username
-    user_name= topic 
-    with lock:
-        # check that username is valid
-        if user_name in backend_data.user_db.keys():
-            failure_msg = b'USERNAME ALREADY EXISTS. TRY ANOTHER! '
-            backend_send.general_failure(producer, topic, failure_msg)
+    user_name, = struct.unpack('!{}s'.format(payload_length), raw_payload)
+    # check that username is valid
+    dic = load_obj('backend/data.db')
 
-        else:
-            # create user session token using uuid (which may be overkill)
-            token = uuid.uuid4().bytes
-            # store user info in global database
-            backend_data.user_db[user_name] = {
-                'topic': topic,
-                'message_queue': [],  # initialize empty message queue for user
-                'token': token,
-            }
-            # store thread local user name
-            topic = user_name
-            # send token back to user
-            backend_send.create_success(producer, topic, token)
+    if user_name in dic.keys():
+        failure_msg = b'USERNAME ALREADY EXISTS. TRY ANOTHER! '
+        backend_send.general_failure(producer, topic, failure_msg)
+
+    else:
+        # store user info in global database
+        dic[user_name] = {
+            'topic': topic,
+            'message_queue': [],  # initialize empty message queue for user
+        }
+        # send token back to user
+        token = topic.encode('utf-8')
+        backend_send.create_success(producer, topic, token)
+        save_obj(dic, 'backend/data.db')
     return
 
 
-def delete_request(producer, topic, payload_length, raw_payload, lock):
+def delete_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles the request to delete an account.
 
@@ -69,17 +61,23 @@ def delete_request(producer, topic, payload_length, raw_payload, lock):
     :return:
     """
     print("Delete request.")
-    with lock:
-        # get username for this topicection
-        user_name = topic 
-        # delete user entry from db
-        del backend_data.user_db[user_name]
-        # delete username from local thread var
-        topic = None
+    # get username for this topic
+    dic = load_obj('backend/data.db')
+
+    for u in dic:
+        if dic[u]['topic'] == topic:
+            user_name = u
+
+    # delete user entry from db
+    del dic[user_name]
+    logout_user(topic)
+
+    save_obj(dic, 'backend/data.db')
+
     return
 
 
-def logout_request(producer, topic, payload_length, raw_payload, lock):
+def logout_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles the request to logout an account.
 
@@ -94,11 +92,11 @@ def logout_request(producer, topic, payload_length, raw_payload, lock):
     :return:
     """
     print("Logout request. A user has been disconnected.")
-    logout_user(lock, topic)
+    logout_user(topic)
     return
 
 
-def send_request(producer, topic, payload_length, raw_payload, lock):
+def send_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles send requests from the client.
 
@@ -117,6 +115,7 @@ def send_request(producer, topic, payload_length, raw_payload, lock):
     :return:
     """
     print("Send message request.")
+    dic = load_obj('backend/data.db')
 
     # parse payload
     # first, get recipient name length; error if length too long
@@ -129,47 +128,54 @@ def send_request(producer, topic, payload_length, raw_payload, lock):
     # parse recipient name and message body (both in byte format)
     message_len = payload_length - 4 - recipient_length
     recipient, message_body = struct.unpack('!{}s{}s'.format(recipient_length, message_len), raw_payload[4:])
-    recipient = recipient.decode('utf-8')
     print('TARGET RECIPIENT IS {}'.format(recipient))
 
-    with lock:
-        # check if recipient exists
-        if recipient not in backend_data.user_db.keys():
-            backend_send.general_failure(producer, topic, b'RECIPIENT DOES NOT EXIST, PLEASE SELECT A VALID USERNAME. ')
-            return
+    # check if recipient exists
+    if recipient not in dic.keys():
+        backend_send.general_failure(producer, topic, b'RECIPIENT DOES NOT EXIST, PLEASE SELECT A VALID USERNAME. ')
+        return
 
-        # check if recipient is online, send if yes
-        recipient_topic = backend_data.user_db[recipient]['topic']
-        print("RECIPIENT TOPIC:::: {}".format(recipient_topic))
+    # check if recipient is online, send if yes
+    recipient_topic = dic[recipient]['topic']
+    print("RECIPIENT TOPIC:::: {}".format(recipient_topic))
 
-        if recipient_topic is not None:
-            try:
-                backend_send.message_alert(producer, recipient_topic, topic, message_body)
-                # notify sender of delivery success
-                backend_send.send_success(producer, topic)
+    if recipient_topic is not None:
+        try:
+            print("try to send")
+            for u in dic:
+                if dic[u]['topic'] == topic:
+                    user_name = u
+            backend_send.message_alert(producer, recipient_topic, user_name, message_body)
+            # notify sender of delivery success
+            print("try to send success")
+            backend_send.send_success(producer, topic)
 
-            except:  # delivery attempt failed even though there is a topicection to recipient
-                # mark recipient as offline
-                backend_data.user_db[recipient]['token'] = None
-                
-                username_conv = topic.encode('utf-8')
-                backend_data.user_db[recipient]['message_queue'].append(
-                    (username_conv, message_body)
-                )
-                # notify sender of delivery failure
-                backend_send.general_failure(producer, topic, b'FAILED MESSAGE DELIVERY ATTEMPT. ')
+        except:  # delivery attempt failed even though there is a connection to recipient
+            # mark recipient as offline
+            dic[recipient]['topic'] = None
 
-        else:
-            # otherwise, store message in queue for recipient for futur'e delivery
-            username_conv = topic.encode('utf-8')
-            backend_data.user_db[recipient]['message_queue'].append(
-                (username_conv, message_body)
+            for u in dic:
+                if dic[u]['topic'] == topic:
+                    user_name = u
+            dic[recipient]['message_queue'].append(
+                (user_name, message_body)
             )
+            # notify sender of delivery failure
+            backend_send.general_failure(producer, topic, b'FAILED MESSAGE DELIVERY ATTEMPT. ')
 
+    else:
+        # otherwise, store message in queue for recipient for futur'e delivery
+        for u in dic:
+            if dic[u]['topic'] == topic:
+                user_name = u
+        dic[recipient]['message_queue'].append(
+            (user_name, message_body)
+        )
+    save_obj(dic, 'backend/data.db')
     return
 
 
-def login_request(producer, topic, payload_length, raw_payload, lock):
+def login_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles the request to log in.
 
@@ -185,34 +191,33 @@ def login_request(producer, topic, payload_length, raw_payload, lock):
     :param lock: threading.lock
     :return:
     """
+    dic = load_obj('backend/data.db')
+
     # get username
-    user_name = topic
-    with lock:
-        # check that username is valid
-        if user_name not in backend_data.user_db.keys():
-            failure_msg = b'USERNAME DOES NOT EXIST! '
-            backend_send.general_failure(producer, topic, failure_msg)
+    user_name, = struct.unpack('!{}s'.format(payload_length), raw_payload)
 
-        # only allow one token at a time for each user
-        elif backend_data.user_db[user_name]['token'] is not None:
-            failure_msg = b'USER ALREADY CONNECTED! '
-            backend_send.general_failure(producer, topic, failure_msg)
+    # check that username is valid
+    if user_name not in dic.keys():
+        failure_msg = b'USERNAME DOES NOT EXIST! '
+        backend_send.general_failure(producer, topic, failure_msg)
 
-        else:
-            # create user session token using uuid (which may be overkill)
-            token = uuid.uuid4().bytes
-            # store user info in global database
-            backend_data.user_db[user_name]['topic'] = topic
-            backend_data.user_db[user_name]['token'] = token
+    # only allow one connection at a time for each user
+    elif dic[user_name]['topic'] is not None:
+        failure_msg = b'USER ALREADY CONNECTED! '
+        backend_send.general_failure(producer, topic, failure_msg)
 
-            # store thread local user name
-            topic = user_name
-            # send token back to user
-            backend_send.login_success(producer, topic, token)
-        return
+    else:
+        # store user info in global database
+        dic[user_name]['topic'] = topic
+
+        # send token back to user
+        token = topic.encode('utf-8')
+        backend_send.login_success(producer, topic, token)
+    save_obj(dic, 'backend/data.db')
+    return
 
 
-def retrieve_request(producer, topic, payload_length, raw_payload, lock):
+def retrieve_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles the request to retrieve unread messages.
 
@@ -227,22 +232,27 @@ def retrieve_request(producer, topic, payload_length, raw_payload, lock):
     :return:
     """
     print("Retrieve request.")
-    with lock:
-        # get username for this topice
-        user_name = topic
+    dic = load_obj('backend/data.db')
 
-        # get the queued messages
-        queue = backend_data.user_db[user_name]['message_queue']
+    # get username for this topice
+    for u in dic:
+        if dic[u]['topic'] == topic:
+            user_name = u
 
-        # send usernames back to user
-        backend_send.retrieve_success(producer, topic, queue)
+    # get the queued messages
+    queue = dic[user_name]['message_queue']
 
-        # flush out message queue
-        backend_data.user_db[user_name]['message_queue'] = []
+    # send usernames back to user
+    backend_send.retrieve_success(producer, topic, queue)
+
+    # flush out message queue
+    dic[user_name]['message_queue'] = []
+
+    save_obj(dic, 'backend/data.db')
     return
 
 
-def list_request(producer, topic, payload_length, raw_payload, lock):
+def list_request(producer, topic, payload_length, raw_payload):
     """
     Function that handles the request to list the users on the messaging app.
 
@@ -256,15 +266,16 @@ def list_request(producer, topic, payload_length, raw_payload, lock):
     :return:
     """
     print("List users request.")
-    with lock:
-        # get user names
-        user_names = list(backend_data.user_db.keys())
-        # send user names back to user
-        backend_send.list_success(producer, topic, user_names)
+    dic = load_obj('backend/data.db')
+
+    # get user names
+    user_names = list(dic.keys())
+    # send user names back to user
+    backend_send.list_success(producer, topic, user_names)
     return
 
 
-def logout_user(lock, topic):
+def logout_user(topic):
     """
     Helper function that logs the user on the present topicection out, if not already logged out. Uses lock to access
     user database user_db, and gets the user name from the thread.local() variable. Logging out means setting token to
@@ -272,14 +283,27 @@ def logout_user(lock, topic):
     :param lock: threading.lock
     :return:
     """
-    with lock:
-        # get username on this topicection from thread_local
-        user_name = topic
-        print(backend_data.user_db)
-        if user_name is not None:
-            # update the user info in the userdb
-            backend_data.user_db[user_name]['token'] = None
-            backend_data.user_db[user_name]['topic'] = None
+    dic = load_obj('backend/data.db')
 
-        print(backend_data.user_db)
+    # get username on this topicection from thread_local
+    for u in dic:
+        if dic[u]['topic'] == topic:
+            user_name = u
+    print(dic)
+    if user_name is not None:
+        # update the user info in the userdb
+        dic[user_name]['topic'] = None
+
+    print(dic)
+    save_obj(dic, 'backend/data.db')
     return
+
+
+def save_obj(obj, name):
+    with open(name, 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+
+def load_obj(name):
+    with open(name, 'rb') as f:
+        return pickle.load(f)

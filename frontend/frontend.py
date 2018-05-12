@@ -9,6 +9,7 @@ from kafka import KafkaProducer, KafkaConsumer
 sys.path.append(os.path.join(os.path.dirname(__file__), '../networking_utils/'))
 import handle_messages
 
+
 class FrontendServer():
 
     def __init__(self):
@@ -25,32 +26,32 @@ class FrontendServer():
         :param sock: socket object
         :return:
         """
-        username = None
-
+        token = 0
         while True:
             try:
                 header, payload = handle_messages.recv_message(sock)
 
+                # create user session token using uuid
+                token = str(int(uuid.uuid4()))
+                print(token)
                 if header[2] == b'\x10' or header[2] == b'\x20':
-                    username, = struct.unpack('!{}s'.format(header[1]), payload)
-                    username = username.decode()
-                    if username not in self.sockets.keys():
-                        self.sockets[username] = sock
-                    if username not in self.consumers.keys():
-                        self.spawn_consumer(username)
+                    if token not in self.sockets.keys():
+                        self.sockets[token] = sock
+                    if token not in self.consumers.keys():
+                        self.spawn_consumer(token)
                 else:
-                    for u in self.sockets.keys():
-                        if self.sockets[u] == sock:
-                            username = u
+                    for t in self.sockets.keys():
+                        if self.sockets[t] == sock:
+                            token = t
                 
                 core = header[0] + struct.pack('!I', header[1]) + header[2] + payload
-                username_conv = str.encode(username, 'utf-8')
-                msg = core + struct.pack('!{}s'.format(len(username_conv)), username_conv)
+                token_conv = str.encode(token, 'utf-8')
+                msg = core + struct.pack('!{}s'.format(len(token_conv)), token_conv)
                 future = self.producer.send(topic='frontend1', value=msg)
                 result = future.get(timeout=30)
                 payload_size = header[1]
 
-                print("---> Hello {} !!!!!\n".format(username))
+                print("---> Hello {} !!!!!\n".format(token))
 
 
             except socket.error as e:
@@ -61,12 +62,12 @@ class FrontendServer():
                 print(e)
                 print("A user has been disconnected.")
                 sock.close()
-                del self.sockets[username]
+                del self.sockets[token]
                 return
 
             try:
-                consumer = self.consumers[username]
-                self.consume_msgs(consumer, username)
+                consumer = self.consumers[token]
+                self.consume_msgs(consumer, token)
             except Exception as e:
                 pass
 
@@ -77,7 +78,7 @@ class FrontendServer():
 
 
     def consume_msgs(self, consumer, username):
-        #print("Trying to consume for topic: {}".format(username))
+        # print("Trying to consume for topic: {}".format(username))
 
         msgs_dict = consumer.poll()
         #print(messages)

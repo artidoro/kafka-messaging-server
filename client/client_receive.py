@@ -138,7 +138,7 @@ def message_alert(conn, payload_length, raw_payload, lock):
 
     # decode messages to strings
     sender, message_body = sender.decode(ENCODING), message_body.decode(ENCODING)
-    print('New message from {}: \n\t{}'.format(sender, message_body))
+    print('\nNew message from {}: \n\t{}\n>> '.format(sender, message_body))
 
     return
 
