@@ -15,7 +15,8 @@ def create_success(producer, topic, token):
     Function that sends account creation success message back to client. The message body contains the unique token.
     The message body is packed following the network endianness.
 
-    :param topic: topic object
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :param token: byte string, unique user token
     :return:
     """
@@ -31,7 +32,8 @@ def login_success(producer, topic, token):
     Function that sends log in success message back to client. The message body contains the unique token.
     The message body is packed following the network endianness.
 
-    :param topic: topic object
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :param token: byte string, unique user token
     :return:
     """
@@ -47,11 +49,14 @@ def send_success(producer, topic):
     Function that sends success message back to client. This function is called when the target of a message is logged
     in and the message is delivered directly to the user. The message is packed with network endianness.
 
-    :param topic: topic object
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :return:
     """
+    # pack message to send back to client
     success_msg = b'\tmessage delivered to logged in user.'
     raw_payload = struct.pack('!{}s'.format(len(success_msg)), success_msg)
+    # send message to client
     handle_messages.produce_message(producer, topic, version, b'\x71', raw_payload)
     return
 
@@ -61,7 +66,8 @@ def message_alert(producer, topic, sender, message_body):
     Function that sends message to target when the target user is online.
     Message payload format is <sender_name_length><sender_name><message_body>
 
-    :param topic: topic connection to *recipient* (not sender)
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :param sender: sender username, in byte format
     :param message_body: message content, in byte format
     :return:
@@ -78,7 +84,8 @@ def general_failure(producer, topic, failure_msg):
     """
     Function that sends failure_msg to client. Packs the message according to network endianness.
 
-    :param topic: topic object
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :param failure_msg: message content, in byte format
     :return:
     """
@@ -94,7 +101,8 @@ def list_success(producer, topic, user_names):
     Function that sends the list of all users to the client. Converts the list to a bytestrings and packs it according
     to the network endianness.
 
-    :param topic: topic object
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :param user_names: user names list
     :return:
     """
@@ -112,7 +120,8 @@ def retrieve_success(producer, topic, queue):
     Function that sends the list of all users to the client. Converts the list to a bytestrings and packs it according
     to the network endianness. Note that a message is a tuple of (user: message)
 
-    :param topic: topic object
+    :param producer: producer object
+    :param topic: str corresponding to connection specific token
     :param queue: list of queued messages
     :return:
     """

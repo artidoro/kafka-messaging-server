@@ -1,11 +1,10 @@
 # client.py
 
+import os
 import socket
-import struct
 import sys
 import time
 import threading
-import os
 
 import client_data
 import client_receive
