@@ -10,13 +10,10 @@ MAX_SOCKET_BYTES = 4096
 
 
 def produce_message(producer, topic, version, opcode, raw_payload):
-    print("Producing message for topic: {}".format(topic))
 
     payload_size = len(raw_payload)
     # pack the message
-    print("{} | {} | {} | {}".format(version, struct.pack('!I', payload_size), opcode, raw_payload))
     message = version + struct.pack('!I', payload_size) + opcode + raw_payload
-    print(message)
     future = producer.send(topic = topic, value = message) 
     result = future.get(timeout=30)
 
