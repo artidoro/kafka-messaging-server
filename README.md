@@ -2,63 +2,108 @@
 
 ## System requirements
 
-Install [Docker](https://docs.docker.com/install/)
+Install [Docker](https://docs.docker.com/install/) and we will do everything else for you (:
 
 ## Running
 
-(I) Start Kafka:
+(1) Start Kafka Cluster:
 
 ```
 sh start_kafka.sh
 ```
 
-(II) Spawn a Consumer for Testing Purposes
+(2) Spawn a Consumer for Testing Purposes
 
 ```
 sh spawn_consumer.sh topic_name
 ```
 
-(III) Spawn a Producer for Testing Purposes
+(3) Spawn a Producer for Debugging Purposes
 
 ```
 sh spawn_producer.sh topic_name
 ```
 
-(IV) Produce a Message for Testing Purposes
+(4) Produce a Message for Debugging Purposes
 
 ```
 sh test_producer.sh
 ```
 
-(V) Stop Everything Running in our Application
-
-```
-sh stop_everything.sh
-```
-
-(VI) Start Frontend Server
+(5) Start Front End Server
 
 ```
 sh start_frontend.sh
 ```
 
-(VII) Start Client
+(6) Start Back End Server
+
+```
+sh start_backend.sh
+```
+
+(7) Start Client
 
 ```
 sh start_client.sh
 ```
 
-OBS1: run the commands in different terminal windows/tabs
+(8) Stop Back End
+
+```
+sh stop_backend.sh
+```
+
+(9) Stop Front End
+
+```
+sh stop_frontend.sh
+```
+
+(10) Restart Back End
+
+```
+sh restart_backend.sh
+```
+
+(11) Stop Everything Running in our Application
+
+```
+sh stop_everything.sh
+```
+
+OBS1: every time you want to run a new command, do it in a new terminal window/tab.
 
 OBS2: no need to create topics in advance
 
-OBS3: To check everything is running fine in your system, you can execute (I), (II), and (IV), in this order, in different terminal tabs/windows.
 
+## How to Test
 
+As discussed in our paper, the whole architecture is tested in a chat context. In order to see its features working, execute the following steps:
 
-## Assignment specs
+1. Make sure no containers are active by running *stop_everything.sh* (11)
 
-Build a client/server application with the following functions:
+2. Start a Kafka Cluster (1)
+
+3. Start a Front End Server (5)
+
+4. Start a Back End Server (6)
+
+5. Start as many clients as you want (7)
+
+6. Send some messages from client to client using the terminal interface presented
+
+7. Observe behavior is expected
+
+8. Stop Backend Server (8) and check that clients are still connected normally
+
+9. Restart Backend Server Again (10) and observe that clients continue working as expected
+
+10. Go back to step 1
+
+## Chat specs
+
+The underlying chat application has the following functionalities:
 
 1. Create an account. You must supply a unique user name.
 
@@ -70,34 +115,6 @@ Build a client/server application with the following functions:
 
 5. Delete an account. You will need to specify the semantics of what happens if you attempt to delete an account that contains undelivered message.
 
-## System requirements
-
-To run this application successfully you will need to have __python 3__ installed in your machine. You can download it [here](https://www.python.org/downloads/).
-
-
-## How to run
-
-After cloning this repository, go to the main directory. There, you can run the chat application locally. The first step is to run the server by executing
-
-```
-python3 server/server.py 8080
-```
-
-And then, each time you want to start a new client, you can run
-
-```
-python3 client/client.py localhost 8080
-```
-
-We also started a test server running on a DigitalOcean server (Ubuntu 16.04.3 x64, 512 MB Memory, running in region SFO1). It can be accessed at 
-```
-python3 client/client.py 104.236.165.78 8080
-```
-
-
-## Architecture & Design
-
-![](./chat_server.jpg)
 
 ### Server's design
 
@@ -113,11 +130,11 @@ For each request made by the client, one of the following must happen:
 
 #### Setup
 
-Each time the server receives a *connect* request from a socket, it accepts the connection and immediately creates a new thread to handle the communication with that client. This means __the server creates a new thread for each active client communication__. It will kill the thread when the client asks to close the connection with the socket.
+Each time the frontend server receives a *connect* request from a socket, it accepts the connection and immediately creates a new thread to handle the communication with that client. This means __the server creates a new thread for each active client communication__. It will kill the thread when the client asks to close the connection with the socket.
 
 We know that for a large number of connections having a thread per client is not the best option, but since we were focusing on the main functionalities, we decided to do it this way. If we wanted the application to be highly scalable, we would probably use the [```select```](https://docs.python.org/2/library/select.html) module so we could have a fixed number of threads handling groups of clients.
 
-The server also maintains a dictionary ```user_db``` of the following format
+The backend server also uses Docker Volumes to maintain a dictionary ```user_db``` of the following format
 
 ```
 user_db = {
@@ -180,6 +197,11 @@ where
 - *username* is a ```string``` with *username_length* number of bytes
 
 - *message_body* is a ```string``` containing the message that the sender wants to deliver to the recipient
+
+
+### Kafka Messages Format
+
+It is important to pinpoint that upon receiving a message from the client, the front end server adds to the end of it a generated token that corresponds to the user's topic in Kafka. In other words, if the front end receives `message`, it produces `message + topic_token` to Kafka. This is important because upon receiving and processing a message, the back end server will produce the response to the topic `token_topic`, which the front end will be listening to so it can forward the response to the correspondent client.
 
 
 ## Possible interactions: client ---> server
@@ -320,7 +342,7 @@ delete
 
 
 ```
-retrieve 
+retrieve
 ```
 
 - Server's action on success:
@@ -341,7 +363,7 @@ retrieve
 
 
 ```
-list 
+list
 ```
 
 - Server's action on success:
@@ -368,7 +390,7 @@ send
 
   - when target user is logged in:
     - returns user message confirming delivery
-  
+
   - when target user is not logged in:
     - queue message in target user queue
 
@@ -376,15 +398,11 @@ send
 - Server's action on error:
 
   - returns error with appropriate error code
-  
+
 
 - Server's timeout (server is busy or dead):
 
   - handled by the socket library
-
-
-
-
 
 
 
@@ -393,7 +411,3 @@ send
 ### Safety
 
 Currently our whole system is completely open to the world in basically all senses. We use no encryption for the messages being exchanged between client and server, as well as no signatures. Authentication is ignored at this point. All these weaknesses can be easily exploited by men-in-the-middle attacks as well as any other kind of attacks. Another possible vulnerability to be exploited is to try to overflow the queued messages for a specific client.
-
-### Persistency
-
-The information on the server is not persistent at this time. This means that as soon as the server dies, all the information about users, queued messages, tokens, and everything else is lost.
