@@ -1,7 +1,7 @@
 ## Cleaning up environment
-docker stop $(docker ps -aq) && docker rm $(docker ps -aq)  && \
-docker network rm 262-network && \
-docker volume rm -f db && \
+docker stop $(docker ps -aq) && docker rm $(docker ps -aq)
+docker network rm 262-network
+docker volume rm -f db
 
 docker network create --subnet=172.18.0.0/16 262-network && \
 
