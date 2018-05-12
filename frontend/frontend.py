@@ -10,11 +10,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../networking_utils/'))
 import handle_messages
 
 
-class FrontendServer():
+class FrontendServer:
+    """
+    Frontend Server object. Contains dictionary of connections, a producer to kafka to the topic of the frontend id
+    and a dictionary of consumers, with one consumer per connection to the front end.
+    """
 
     def __init__(self):
         self.sockets = {}
-        self.producer = KafkaProducer(bootstrap_servers='kafka:9092', api_version=(0,10,1))
+        self.producer = KafkaProducer(bootstrap_servers='kafka:9092', api_version=(0, 10, 1))
         self.consumers = {}
         self.counter = 0
 
@@ -23,6 +27,7 @@ class FrontendServer():
         Function that listens on socket connection and handles messages in two ways:
         i) Upon reception of a message from client, msg is posted to Kafka under the frontend's topic;
         ii) Upon consumption of message from kafka topic corresponding to user, send consumed msg to user
+
         :param sock: socket object
         :return:
         """
@@ -34,17 +39,19 @@ class FrontendServer():
                 # create user session token
                 token = str(int(uuid.uuid4()))
 
-                ## in case of login or create user, update control parameters
+                # in case of login or create user, update control parameters and store the socket and the token
                 if header[2] == b'\x10' or header[2] == b'\x20':
                     if token not in self.sockets.keys():
                         self.sockets[token] = sock
                     if token not in self.consumers.keys():
                         self.spawn_consumer(token)
+                # otherwise retrieve it from the dictionary
                 else:
                     for t in self.sockets.keys():
                         if self.sockets[t] == sock:
                             token = t
-                
+
+                # construct the message to be forwarded to the back end
                 core = header[0] + struct.pack('!I', header[1]) + header[2] + payload
                 token_conv = str.encode(token, 'utf-8')
                 msg = core + struct.pack('!{}s'.format(len(token_conv)), token_conv)
@@ -56,7 +63,6 @@ class FrontendServer():
                 pass
             except Exception as e:
                 # remove this user from self.consumers
-                print(e)
                 print("A user has been disconnected.")
                 sock.close()
                 del self.sockets[token]
@@ -69,13 +75,27 @@ class FrontendServer():
                 pass
 
     def spawn_consumer(self, topic):
+        """
+        Creates a new consumer to kafka and subscribes to the topic given in argument.
+
+        :param topic: str unique token for a connection
+        :return:
+        """
         # start a new consumer for topic 'topic'
-        consumer = KafkaConsumer(bootstrap_servers='kafka:9092', api_version=(0,10,1), auto_offset_reset='earliest', group_id=None)
+        consumer = KafkaConsumer(bootstrap_servers='kafka:9092', api_version=(0, 10, 1), auto_offset_reset='earliest',
+                                 group_id=None)
         consumer.subscribe([topic])
         self.consumers[topic] = consumer
 
 
     def consume_msgs(self, consumer, username):
+        """
+        Consume messages, and reroutes them to the corresponding users.
+
+        :param consumer: kafka consumer object
+        :param username: str unique identifier for the connected user
+        :return:
+        """
         
         # pull messages from topic username
         msgs_dict = consumer.poll()
