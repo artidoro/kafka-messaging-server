@@ -20,8 +20,8 @@ class FrontendServer():
 
     def message_handler(self, sock):
         """
-        Function that listens on socket connection and handles messages.
-        i) Upon reception of a message, it is posted to Kafka under the frontend's topic;
+        Function that listens on socket connection and handles messages in two ways:
+        i) Upon reception of a message from client, msg is posted to Kafka under the frontend's topic;
         ii) Upon consumption of message from kafka topic corresponding to user, send consumed msg to user
         :param sock: socket object
         :return:
@@ -31,9 +31,10 @@ class FrontendServer():
             try:
                 header, payload = handle_messages.recv_message(sock)
 
-                # create user session token using uuid
+                # create user session token
                 token = str(int(uuid.uuid4()))
-                print(token)
+
+                ## in case of login or create user, update control parameters
                 if header[2] == b'\x10' or header[2] == b'\x20':
                     if token not in self.sockets.keys():
                         self.sockets[token] = sock
@@ -47,16 +48,12 @@ class FrontendServer():
                 core = header[0] + struct.pack('!I', header[1]) + header[2] + payload
                 token_conv = str.encode(token, 'utf-8')
                 msg = core + struct.pack('!{}s'.format(len(token_conv)), token_conv)
+
                 future = self.producer.send(topic='frontend1', value=msg)
                 result = future.get(timeout=30)
-                payload_size = header[1]
-
-                print("---> Hello {} !!!!!\n".format(token))
-
 
             except socket.error as e:
-                pass
-                #print("Nothing has been received from this user!")
+                print("Nothing has been received from this user!")
             except Exception as e:
                 # remove this user from self.consumers
                 print(e)
@@ -72,23 +69,23 @@ class FrontendServer():
                 pass
 
     def spawn_consumer(self, topic):
+        # start a new consumer for topic 'topic'
         consumer = KafkaConsumer(bootstrap_servers='kafka:9092', api_version=(0,10,1), auto_offset_reset='earliest', group_id=None)
         consumer.subscribe([topic])
         self.consumers[topic] = consumer
 
 
     def consume_msgs(self, consumer, username):
-        # print("Trying to consume for topic: {}".format(username))
-
+        
+        # pull messages from topic username
         msgs_dict = consumer.poll()
-        #print(messages)
         if not msgs_dict:
             return
-
+        
+        # consumer messages and send to clients
         for _, messages in msgs_dict.items():
             for message in messages:
                 msg = message.value
-                print("front consuming msg: {}".format(msg))
                 sock = self.sockets[username]
                 handle_messages.send_bytes(sock, msg, len(msg))
 
