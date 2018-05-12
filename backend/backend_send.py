@@ -98,7 +98,8 @@ def list_success(producer, topic, user_names):
     :return:
     """
     # get the usernames int the user_names list in a single string
-    user_names = b'; '.join(user_names)
+    user_names = bytes('; '.join(user_names), 'utf-8')
+    #user_names = user_names.encode('utf-8')
     # pack token to send back to client
     raw_payload = struct.pack('!{}s'.format(len(user_names)), user_names)
     # send message to client
