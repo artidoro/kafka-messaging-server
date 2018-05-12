@@ -33,13 +33,13 @@ sh test_producer.sh
 (5) Start Front End Server
 
 ```
-sh start_backend.sh
+sh start_frontend.sh
 ```
 
 (6) Start Back End Server
 
 ```
-sh start_frontend.sh
+sh start_backend.sh
 ```
 
 (7) Start Client
@@ -54,19 +54,19 @@ sh start_client.sh
 sh stop_backend.sh
 ```
 
-(7) Stop Front End
+(9) Stop Front End
 
 ```
 sh stop_frontend.sh
 ```
 
-(8) Restart Back End
+(10) Restart Back End
 
 ```
 sh restart_backend.sh
 ```
 
-(9) Stop Everything Running in our Application
+(11) Stop Everything Running in our Application
 
 ```
 sh stop_everything.sh
@@ -81,13 +81,13 @@ OBS2: no need to create topics in advance
 
 As discussed in our paper, the whole architecture is tested in a chat context. In order to see its features working, execute the following steps:
 
-1. Make sure no containers are active by running *stop_everything.sh* (9)
+1. Make sure no containers are active by running *stop_everything.sh* (11)
 
 2. Start a Kafka Cluster (1)
 
-3. Start a Front End Server (6)
+3. Start a Front End Server (5)
 
-4. Start a Back End Server (5)
+4. Start a Back End Server (6)
 
 5. Start as many clients as you want (7)
 
@@ -97,7 +97,7 @@ As discussed in our paper, the whole architecture is tested in a chat context. I
 
 8. Stop Backend Server (8) and check that clients are still connected normally
 
-9. Restart Backend Server Again (8) and observe that clients continue working as expected
+9. Restart Backend Server Again (10) and observe that clients continue working as expected
 
 10. Go back to step 1
 
