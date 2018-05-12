@@ -94,10 +94,11 @@ def process_init_input(input_buffer, client_sock):
         client_send.create_request(client_sock)
 
     # log in
-    else:
+    elif input_buffer == str(2):
         client_send.login_request(client_sock)
 
-    return
+    else:
+        return
 
 
 def process_loggedin_input(input_buffer, client_sock, data_lock):
@@ -126,10 +127,11 @@ def process_loggedin_input(input_buffer, client_sock, data_lock):
         client_send.logout_request(client_sock, data_lock)
 
     # delete account
-    else:
+    elif input_buffer == str(5):
         client_send.delete_request(client_sock, data_lock)
-
-    return
+    
+    else:
+        return
 
 
 def message_handler(conn, lock, return_on_message=False):
@@ -149,6 +151,7 @@ def message_handler(conn, lock, return_on_message=False):
         # receive message
         try:
             header, payload = handle_messages.recv_message(conn)
+            print('MESSAGE HERE: {} {}'.format(header, payload))
         except:
             with lock:
                 client_data.token = None
@@ -206,7 +209,7 @@ if __name__ == '__main__':
         threading.Thread(target=message_handler, args=(client_sock, data_lock), daemon=True).start()
 
         # once logged in present secondary menu
-        while client_data.token  is not None:
+        while client_data.token is not None:
             # print menu and get selection
             input_buffer = loggedin_input()
             # broadcase request to server

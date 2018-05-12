@@ -6,4 +6,4 @@ RUN pip install kafka-python
 
 COPY . .
 
-CMD [ "python", "./frontend/frontend.py", "8080" ]
+CMD [ "python", "./backend/backend.py" ]
