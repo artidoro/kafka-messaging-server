@@ -48,7 +48,7 @@ def create_request(producer, topic, payload_length, raw_payload, lock):
                 'token': token,
             }
             # store thread local user name
-            backend_data.thread_local.user_name = user_name
+            topic = user_name
             # send token back to user
             backend_send.create_success(producer, topic, token)
     return
@@ -71,11 +71,11 @@ def delete_request(producer, topic, payload_length, raw_payload, lock):
     print("Delete request.")
     with lock:
         # get username for this topicection
-        user_name = backend_data.thread_local.user_name
+        user_name = topic 
         # delete user entry from db
         del backend_data.user_db[user_name]
         # delete username from local thread var
-        backend_data.thread_local.user_name = None
+        topic = None
     return
 
 
@@ -95,7 +95,6 @@ def logout_request(producer, topic, payload_length, raw_payload, lock):
     """
     print("Logout request. A user has been disconnected.")
     logout_user(lock, topic)
-    print("AFTER LOGOUT......")
     return
 
 
@@ -151,19 +150,20 @@ def send_request(producer, topic, payload_length, raw_payload, lock):
 
             except:  # delivery attempt failed even though there is a topicection to recipient
                 # mark recipient as offline
-                backend_data.user_db[recipient]['topic'] = None
                 backend_data.user_db[recipient]['token'] = None
-
+                
+                username_conv = topic.encode('utf-8')
                 backend_data.user_db[recipient]['message_queue'].append(
-                    (backend_data.thread_local.user_name, message_body)
+                    (username_conv, message_body)
                 )
                 # notify sender of delivery failure
                 backend_send.general_failure(producer, topic, b'FAILED MESSAGE DELIVERY ATTEMPT. ')
 
         else:
-            # otherwise, store message in queue for recipient for future delivery
+            # otherwise, store message in queue for recipient for futur'e delivery
+            username_conv = topic.encode('utf-8')
             backend_data.user_db[recipient]['message_queue'].append(
-                (backend_data.thread_local.user_name, message_body)
+                (username_conv, message_body)
             )
 
     return
@@ -187,7 +187,6 @@ def login_request(producer, topic, payload_length, raw_payload, lock):
     """
     # get username
     user_name = topic
-    print("LOGIN IN USER: {}".format(user_name))
     with lock:
         # check that username is valid
         if user_name not in backend_data.user_db.keys():
@@ -207,7 +206,7 @@ def login_request(producer, topic, payload_length, raw_payload, lock):
             backend_data.user_db[user_name]['token'] = token
 
             # store thread local user name
-            backend_data.thread_local.user_name = user_name
+            topic = user_name
             # send token back to user
             backend_send.login_success(producer, topic, token)
         return
@@ -229,8 +228,8 @@ def retrieve_request(producer, topic, payload_length, raw_payload, lock):
     """
     print("Retrieve request.")
     with lock:
-        # get username for this topicection
-        user_name = backend_data.thread_local.user_name
+        # get username for this topice
+        user_name = topic
 
         # get the queued messages
         queue = backend_data.user_db[user_name]['message_queue']
@@ -276,7 +275,6 @@ def logout_user(lock, topic):
     with lock:
         # get username on this topicection from thread_local
         user_name = topic
-        print("user_name = {}".format(user_name))
         print(backend_data.user_db)
         if user_name is not None:
             # update the user info in the userdb

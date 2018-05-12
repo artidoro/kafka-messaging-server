@@ -65,6 +65,7 @@ def message_alert(producer, topic, sender, message_body):
     :param message_body: message content, in byte format
     :return:
     """
+    sender = sender.encode('utf-8')
     sender_length = len(sender)
     message_length = len(message_body)
     # construct message payload
@@ -117,7 +118,10 @@ def retrieve_success(producer, topic, queue):
     :return:
     """
     # get the messages int the queue in a single string
+    print('ALMOOOOST THERE')
+
     messages = b'\n\n'.join(map(lambda l: b': '.join(list(l)), queue))
+    print("MESSAGES AFTER JOIN BLABLA : {}".format(messages))
     # pack token to send back to client
     raw_payload = struct.pack('!{}s'.format(len(messages)), messages)
     # send message to client
